@@ -1,0 +1,12 @@
+questionNumber,Command,CLIorSQLcommandType,Answer
+1,SELECT @@version;,SQL,8.0.21
+2,SELECT COUNT(*) FROM information_schema.SCHEMATA;,SQL,3
+3,show databases,CLI,Loyal; db356_j387wu; information_schema;
+4a,use Loyal,CLI,use Loyal
+4b,mysql -u j387wu -p -h marmoset02.shoshin.uwaterloo.ca Loyal,CLI,mysql -u j387wu -p -h marmoset02.shoshin.uwaterloo.ca Loyal
+4c,show Tables;,CLI,4
+4d,"SELECT table_name, COUNT(*) FROM (SELECT column_name, table_name FROM information_schema.columns WHERE table_name=""Product"" || table_name=""Customer"" || table_name=""buys"" || table_name=""Location"") as temp GROUP BY temp.table_name;",SQL,Location
+4e,"SELECT column_type FROM information_schema.columns WHERE table_name=""Location"";",SQL,varchar(50);int;int;
+4f,SELECT count(*) from Product WHERE cost < 450 AND cost > 150;,SQL,2
+5,SELECT database();,SQL,NULL
+6,SELECT count(*) from Loyal.Product WHERE cost < 450 AND cost > 150;,SQL,2

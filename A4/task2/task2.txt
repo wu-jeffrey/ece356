@@ -1,0 +1,55 @@
+## Average Performance
+PLAIN: 11.745133 s
+PK: 2.908967 s
+FK: 9.579667 s
+NoIndexCopy(w/ histogram): 2.946567 s
+
+## Plain vs PK
+In the plain DB, because there are no PKs and thus no primary/clustered index. For this reason, the optimizer has to do a full table scan of `PlayerInfo`,
+`GamePlaysPlayers` and `GamePlays` because even if it finds the `playerID`, it still needs to tablescan the whole `PlayerInfo` table in order to find it.
+Thus, it begins by tablescanning `PlayerInfo` because it has less rows than GamePlays and GamePlaysPlayers.
+
+When PKs and corresponding indexes are added, the optimizer can get the reference to the `player.firstName` and `player.lastName` using the `playerID` PK, so it has no reason to do a full tablescan of `PlayerInfo`,
+instead choosing to begin with `GamePlays` that match the subquery (i.e. query 2). A full scan of the `GamePlays` table will yield the `gameID and playID`s that match the subquery.
+As the PK on `GamePlaysPlayers` is `(gameID, playID, playerID)`, the `playerID` can be found without doing a full scan of `GamePlaysPlayers` to yield the `playerID` that's wanted.
+This ties back into the first sentence of this paragraph, since `playerID` is a PK on the `playerInfo` table, the table doesn't need to be fully scanned.
+
+The subquery is also improved for the same reason; without PKs, a full table scan is necessary for all tables being joned, beginning on TeamInfo as it has the least rows. With PKs for all the `<table_name>ID` columns, it instead begins on the `Game` table,
+which can be filtered by `season` and yield `gameID`. This `gameID` can be then used when looking through `GamePlays` of `playType = 'Goal'`. Finally, using `teamIDfor` in the `teamID` PK of `teamInfo`, a full tablescan is not required to find the Maple Leafs.
+
+## PK vs FK
+The FKs appeared to have slowed down the query execution time. The subquery's order did not change, however the base query order changed from
+```GamePlays > GamePlaysPlayers > PlayerInfo```
+into
+```PlayerInfo > GamePlaysPlayers > GamePlays```
+This happens the optimzer is trying to leverage the FK `playerID` on GamePlayPlayers, but the `PlayerInfo` isn't being filtered, so it ends up scanning the full table of `PlayerInfo` and then another full table for `GamePlaysPlayers`.
+This is a prime example of when adding indexes may actually degrade performance instead of improving it.
+
+## Indexes
+Note that the query optimizer in the `NHL_FK` database and the copy `db356_j387wu` have different execution plans. The indexes added will reflect how to improve the performance in the copied database.
+The performance and query plan in the `db356_j387wu` database may not be affected.
+
+First, we must take a look at which columsn are being looked at in the query.
+
+```
+PlayerInfo: playerID, firstName, lastName
+GamePlaysPlayers: gameID, playNumber, playerID, playerRole
+GamePlays: gameID, playNumber, playType, teamIDfor
+Game: gameID, season
+TeamInfo: TeamID, name
+```
+
+- Indexing on `PlayerInfo (playerID, firstName, lastName)` isn't effective since we're likely picking a player using a `playerID` which already has the primary index.
+  - Will not implement this
+- Indexing on `GamePlaysPlayers` might be useful. `(gameID, playNumber, playerRole, playerID)` might enable a faster lookup in GamePlayPlayers to find scorers.
+  - Will not implement this because `(gameID, playNumber)` is the FK that's being joined on so either way the `playerRole and playerID`
+  - This index might be more useful on the `FK` database instead of the copy because it might force the optimizer to tablescan GamePlays first to get the `gameID, playNumber` which then can be used with this index.
+- Indexing on `GamePlays (playType)` might help narrow down plays that were goals. `GamePlays ()
+  - Will implement this
+- Indexing on `Game (season)` might help narrow down Games by season.
+  - Will implement this
+- Indexing on `TeamInfo (name)` might help narrow down Teams by name.
+  - Will not implement this since the `TeamInfo` table is relatively small.
+
+After adding the two indexes for `Game (season)` and `TeamInfo (name)`, the average query speed improved very slightly, from `2.946567 s` to `2.648167 s`.
+Using `EXPLAIN`, the subquery is clearly using the added indexes.

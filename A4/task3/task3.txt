@@ -1,0 +1,26 @@
+1. Rewrote the query to first find the games in the 2019-2020 season,
+2. The Gameplays within that set of that season's games (i.e. the same GameIDs) that were also goals for the Leafs are found.
+3. From that set of `LeafsGoals`, the first Leaf goal is found.
+4. Then playerInfo with the ID matching the `GamePlayPlayer` who was the scorer for the first Leafs goal is found.
+
+No indexes were added, since the index on `Game (season)` allows the games from the '20192020' season to be found via index. The index on `GamePlays (playType)` allows Goals to be found quickly.
+This query approach entirely avoids tablescans, except for on `TeamInfo`, but as established in task 2, the TeamInfo is currently very small and adding an index would be unecessary.
+
+Relevant explain output:
+
+```
++----+-------------+------------+------------+-------+---------------------------------+-----------------+---------+------------------------------------------------------------+------+----------+-------------+
+| id | select_type | table      | partitions | type  | possible_keys                   | key             | key_len | ref                                                        | rows | filtered | Extra       |
++----+-------------+------------+------------+-------+---------------------------------+-----------------+---------+------------------------------------------------------------+------+----------+-------------+
+|  1 | PRIMARY     | PlayerInfo | NULL       | const | PRIMARY                         | PRIMARY         | 4       | const                                                      |    1 |      100 | NULL        |
+|  2 | SUBQUERY    | Game       | NULL       | ref   | PRIMARY,idx_game_season         | idx_game_season | 5       | const                                                      | 1215 |      100 | Using index |
+|  2 | SUBQUERY    | GamePlays  | NULL       | ref   | PRIMARY,teamIDfor,idx_play_type | idx_play_type   | 108     | const,db356_j387wu.Game.gameID                             |   16 |      0.5 | Using where |
+|  2 | SUBQUERY    | GPP        | NULL       | ref   | PRIMARY                         | PRIMARY         | 9       | db356_j387wu.Game.gameID,db356_j387wu.GamePlays.playNumber |    1 |       10 | Using where |
+|  7 | SUBQUERY    | Game       | NULL       | ref   | PRIMARY,idx_game_season         | idx_game_season | 5       | const                                                      | 1215 |      100 | Using index |
+|  7 | SUBQUERY    | GamePlays  | NULL       | ref   | PRIMARY,teamIDfor,idx_play_type | idx_play_type   | 108     | const,db356_j387wu.Game.gameID                             |   16 |     4.98 | Using where |
+| 10 | SUBQUERY    | TeamInfo   | NULL       | ALL   | NULL                            | NULL            | NULL    | NULL                                                       |   33 |     3.03 | Using where |
+|  6 | SUBQUERY    | TeamInfo   | NULL       | ALL   | NULL                            | NULL            | NULL    | NULL                                                       |   33 |     3.03 | Using where |
++----+-------------+------------+------------+-------+---------------------------------+-----------------+---------+------------------------------------------------------------+------+----------+-------------+
+```
+
+The average query time was decreased from 2.648167 s to 0.068900 s, a 97.4% decrease.
